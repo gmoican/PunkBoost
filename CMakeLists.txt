@@ -37,6 +37,13 @@ file(STRINGS VERSION CURRENT_VERSION)
 # For simplicity, the name of the project is also the name of the target
 project(${PROJECT_NAME} VERSION ${CURRENT_VERSION})
 
+# Building universal binaries on macOS increases build time
+# This is set on CI but not during local dev
+if ((DEFINED ENV{CI}) AND (CMAKE_BUILD_TYPE STREQUAL "Release"))
+    message("Building for Apple Silicon and x86_64")
+    set(CMAKE_OSX_ARCHITECTURES arm64 x86_64)
+endif ()
+
 # By default we don't want Xcode schemes to be made for modules, etc
 set(CMAKE_XCODE_GENERATE_SCHEME OFF)
 
@@ -109,18 +116,7 @@ file(GLOB_RECURSE SourceFiles CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/source/*.h")
 target_sources(SharedCode INTERFACE ${SourceFiles})
 
-#
-
-### MacOS only: Cleans up folder and target organization on Xcode.
-# No, we don't want our source buried in extra nested folders
-set_target_properties(SharedCode PROPERTIES FOLDER "")
-
-# The Xcode source tree should uhhh, still look like the source tree, yo
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/source PREFIX "" FILES ${SourceFiles})
-
-#
-
-### Adds a BinaryData target for embedding assets into the binary
+# Adds a BinaryData target for embedding assets into the binary
 file(GLOB_RECURSE AssetFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/*")
 
 # Setup our binary data as a target called Assets
@@ -129,6 +125,15 @@ juce_add_binary_data(Assets SOURCES ${AssetFiles})
 # Required for Linux happiness:
 # See https://forum.juce.com/t/loading-pytorch-model-using-binarydata/39997/2
 set_target_properties(Assets PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
+#
+
+### MacOS only: Cleans up folder and target organization on Xcode.
+# No, we don't want our source buried in extra nested folders
+set_target_properties(SharedCode PROPERTIES FOLDER "")
+
+# The Xcode source tree should uhhh, still look like the source tree, yo
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/source PREFIX "" FILES ${SourceFiles})
 
 #
 
@@ -178,7 +183,7 @@ target_compile_definitions(SharedCode
     VERSION="${CURRENT_VERSION}"
 
     # JucePlugin_Name is for some reason doesn't use the nicer PRODUCT_NAME
-    PRODUCT_NAME_WITHOUT_VERSION="Punk Komp"
+    PRODUCT_NAME_WITHOUT_VERSION="Punk Boost"
 )
 
 #
