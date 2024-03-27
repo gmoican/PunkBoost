@@ -34,7 +34,7 @@ jobs:
           - name: macOS
             os: macos-14
             pluginval-binary: pluginval.app/Contents/MacOS/pluginval
-          - name: windows
+          - name: Windows
             os: windows-latest
             pluginval-binary: ./pluginval.exe
 
@@ -47,11 +47,9 @@ jobs:
       if: runner.os == 'Linux'
       # Thanks to McMartin & co https://forum.juce.com/t/list-of-juce-dependencies-under-linux/15121/44
       run: |
-        sudo apt-get update && sudo apt install libasound2-dev libx11-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.0-dev libglu1-mesa-dev xvfb fluxbox ninja-build
-        # downgrade gcc to workaround 22.04 and C++20 issue
+        sudo apt-get update && sudo apt install libasound2-dev libx11-dev libxinerama-dev libxext-dev libfreetype6-dev libwebkit2gtk-4.0-dev libglu1-mesa-dev xvfb ninja-build
+        # downgrade gcc to workaround 22.04 and C++20 issue 
         # see: https://github.com/actions/runner-images/issues/8659
-        sudo rm -f /etc/apt/sources.list.d/ubuntu-toolchain-r-ubuntu-test-jammy.list
-        sudo apt-get update
         sudo apt-get install -y --allow-downgrades libc6=2.35-0ubuntu3.6 libc6-dev=2.35-0ubuntu3.6 libstdc++6=12.3.0-1ubuntu1~22.04 libgcc-s1=12.3.0-1ubuntu1~22.04
         sudo /usr/bin/Xvfb $DISPLAY &
 
@@ -77,13 +75,11 @@ jobs:
       with:
         path: C:\Program Files (x86)\Intel
         key: ipp-v4
-    
-    # This lets us use sscache on Windows
-    # We need to install ccache here for Windows to grab the right version
+
     - name: Install Ninja (Windows)
       if: runner.os == 'Windows'
       shell: bash
-      run: choco install ninja ccache
+      run: choco install ninja
 
     - name: Install macOS Deps
       if: ${{ matrix.name == 'macOS' }}
@@ -96,11 +92,11 @@ jobs:
       with:
         xcode-version: latest-stable
 
-    - name: Checkout
-      uses: actions/checkout@v3.3.0
+    - name: Checkout code
+      uses: actions/checkout@v3
       with:
-        submodules: true # Gotta get JUCE populated
-    
+        submodules: true # Get JUCE populated
+
     - name: Cache the build
       uses: mozilla-actions/sccache-action@v0.0.3
 
@@ -110,10 +106,10 @@ jobs:
       with:
         p12-file-base64: ${{ secrets.DEV_ID_APP_CERT }}
         p12-password: ${{ secrets.DEV_ID_APP_PASSWORD }}
-    
+
     - name: Configure
       shell: bash
-      run: cmake -B ${{ env.BUILD_DIR }} -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER={{ matrix.ccache }} -DCMAKE_CXX_COMPILER_LAUNCHER={{ matrix.ccache }} -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" .
+      run: cmake -B ${{ env.BUILD_DIR }} -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE}} -DCMAKE_C_COMPILER_LAUNCHER=${{ matrix.ccache }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ matrix.ccache }} -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" .
 
     - name: Build
       shell: bash
@@ -122,13 +118,13 @@ jobs:
     - name: Test
       working-directory: ${{ env.BUILD_DIR }}
       run: ctest --output-on-failure -j4 -VV
-    
+
     - name: Read in .env from CMake # see GitHubENV.cmake
       shell: bash
       run: |
         cat .env # show us the config
         cat .env >> $GITHUB_ENV # pull in our PRODUCT_NAME, etc
-    
+
     - name: Set additional env vars for next steps
       shell: bash
       run: |
@@ -141,12 +137,11 @@ jobs:
         echo "ARTIFACT_NAME=${{ env.PRODUCT_NAME }}-${{ env.VERSION }}-${{ matrix.name }}" >> $GITHUB_ENV
 
     - name: Pluginval
-      working-directory: ${{ env.BUILD_DIR }}
       shell: bash
       run: |
         curl -LO "https://github.com/Tracktion/pluginval/releases/download/v1.0.3/pluginval_${{ matrix.name }}.zip"
         7z x pluginval_${{ matrix.name }}.zip
-        ${{ matrix.pluginval-binary }} --strictness-level ${{ matrix.pluginval-strictness }} --verbose --validate "${{ env.VST3_PATH }}"
+        ${{ matrix.pluginval-binary }} --strictness-level 10 --verbose --validate "${{ env.VST3_PATH }}"
 
     # - name: Codesign (macOS)
     #   working-directory: ${{ env.BUILD_DIR }}
@@ -179,7 +174,7 @@ jobs:
     - name: Zip (Linux)
       if: ${{ matrix.name == 'Linux' }}
       working-directory: ${{ env.ARTIFACTS_PATH }}
-      run: 7z a -tzip ${{ env.OUTPUT_FILENAME }}.zip .
+      run: 7z a -tzip "${{ env.ARTIFACT_NAME }}.zip" .
 
     - name: Upload VST3 (Windows)
       if: ${{ matrix.name == 'Windows' }}
@@ -201,7 +196,6 @@ jobs:
       with:
         name: ${{ env.ARTIFACT_NAME }}
         path: ${{ env.ARTIFACT_NAME }}.zip
-
 
   release:
     if: contains(github.ref, 'tags/v')

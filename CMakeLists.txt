@@ -4,8 +4,37 @@ cmake_minimum_required(VERSION 3.24.1)
 
 #
 
-# Change this to the name of your plugin
-# This cannot have spaces (but PRODUCT_NAME can)
+### Reads in our VERSION file and sticks in it CURRENT_VERSION variable
+# Be sure the file has no newlines!
+# This exposes CURRENT_VERSION to the build system
+# And it's later fed to JUCE so it shows up as VERSION in your IDE
+file(STRINGS VERSION CURRENT_VERSION)
+
+# Figure out the major version to append to our PROJECT_NAME
+string(REGEX MATCH "([0-9]+)" MAJOR_VERSION ${CURRENT_VERSION})
+message(STATUS "Major version: ${MAJOR_VERSION}")
+
+#
+
+### Configures universal binaries and decides which version of macOS to support
+# This must be set before the project() call
+# see: https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_DEPLOYMENT_TARGET.html
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Support macOS down to High Sierra")
+
+# Building universal binaries on macOS increases build time
+# This is set on CI but not during local dev
+if ((DEFINED ENV{CI}) AND (CMAKE_BUILD_TYPE STREQUAL "Release"))
+    message("Building for Apple Silicon and x86_64")
+    set(CMAKE_OSX_ARCHITECTURES arm64 x86_64)
+endif ()
+
+# By default we don't want Xcode schemes to be made for modules, etc
+set(CMAKE_XCODE_GENERATE_SCHEME OFF)
+
+#
+
+# Change me!
+# This is the internal name of the project and the name of JUCE's shared code target
 set(PROJECT_NAME "PunkBoost")
 
 # Change me!
@@ -24,28 +53,10 @@ set(BUNDLE_ID "com.punkarra4.PunkBoost")
 # Valid choices: AAX Unity VST VST3 AU AUv3 Standalone
 set(FORMATS AU VST3)
 
-#
-
-# This must be set before the project() call
-# see: https://cmake.org/cmake/help/latest/variable/CMAKE_OSX_DEPLOYMENT_TARGET.html
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Support macOS down to High Sierra")
-
-# Reads in VERSION file and sticks in it CURRENT_VERSION variable
-# Be sure the file has no newlines
-file(STRINGS VERSION CURRENT_VERSION)
-
-# For simplicity, the name of the project is also the name of the target
+# For simplicity, the name of the CMake project is also the name of the target
 project(${PROJECT_NAME} VERSION ${CURRENT_VERSION})
 
-# Building universal binaries on macOS increases build time
-# This is set on CI but not during local dev
-if ((DEFINED ENV{CI}) AND (CMAKE_BUILD_TYPE STREQUAL "Release"))
-    message("Building for Apple Silicon and x86_64")
-    set(CMAKE_OSX_ARCHITECTURES arm64 x86_64)
-endif ()
-
-# By default we don't want Xcode schemes to be made for modules, etc
-set(CMAKE_XCODE_GENERATE_SCHEME OFF)
+#
 
 # Adds all the module sources so they appear correctly in the IDE
 # Must be set before JUCE is added as a sub-dir (or any targets are made)
@@ -126,8 +137,6 @@ juce_add_binary_data(Assets SOURCES ${AssetFiles})
 # See https://forum.juce.com/t/loading-pytorch-model-using-binarydata/39997/2
 set_target_properties(Assets PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
-#
-
 ### MacOS only: Cleans up folder and target organization on Xcode.
 # No, we don't want our source buried in extra nested folders
 set_target_properties(SharedCode PROPERTIES FOLDER "")
@@ -135,9 +144,6 @@ set_target_properties(SharedCode PROPERTIES FOLDER "")
 # The Xcode source tree should uhhh, still look like the source tree, yo
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/source PREFIX "" FILES ${SourceFiles})
 
-#
-
-### XCode folder organization cleanup
 # It tucks the Plugin varieties into a "Targets" folder and generate an Xcode Scheme manually
 # Xcode scheme generation is turned off globally to limit noise from other targets
 # The non-hacky way of doing this is via the global PREDEFINED_TARGETS_FOLDER property
