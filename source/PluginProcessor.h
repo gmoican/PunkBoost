@@ -61,9 +61,6 @@ public:
     //=============== MY STUFF =====================================================
     juce::AudioProcessorValueTreeState state;
     
-    // Getters
-    float getGRValue();
-    
     // Updaters
     void updateOnOff();
     void updateBoost();
